@@ -43,6 +43,8 @@ fn load_css(size: i32) {
     let provider = CssProvider::new();
     provider.load_from_data(css_code.as_bytes()).unwrap();
 
+
+    StyleContext::remove_provider_for_screen(&Screen::default().expect("Could not connect to a display."), &provider);
     // Add the provider to the default screen
     StyleContext::add_provider_for_screen(
         &Screen::default().expect("Could not connect to a display."),

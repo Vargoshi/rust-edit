@@ -1,9 +1,12 @@
+//#![deny(clippy::too_many_lines)]
+#![allow(clippy::redundant_clone)]
+
 use gtk::gdk::Screen;
 use gtk::gdk_pixbuf::Pixbuf;
 use gtk::gio::prelude::*;
-use gtk::glib::clone;
-use gtk::{glib, AboutDialog, CssProvider, StyleContext};
+
 use gtk::{prelude::*, TextView};
+use gtk::{AboutDialog, CssProvider, StyleContext};
 use gtk::{Application, ApplicationWindow, Menu, MenuBar, MenuItem, ScrolledWindow};
 use std::cell::RefCell;
 use std::fs::File;
@@ -60,7 +63,6 @@ fn load_css(size: i32) {
 }
 
 fn build_ui(app: &Application) {
-    let css = Rc::new(RefCell::new(CSSProperties { font: 15 }));
     let filename = Rc::new(RefCell::new(FileProperties {
         filename: PathBuf::new(),
     }));
@@ -73,256 +75,264 @@ fn build_ui(app: &Application) {
         .resizable(true)
         .build();
 
+    let textbox = TextView::new();
+
     let scrolled_window = ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
     scrolled_window.set_size_request(640, 400);
 
     let win_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
     let menu_bar = MenuBar::new();
 
-    let file = MenuItem::with_label("File");
-    let file_menu = Menu::new();
-
-    let new = MenuItem::with_label("New");
-    let open = MenuItem::with_label("Open");
-    let save = MenuItem::with_label("Save");
-    let save_as = MenuItem::with_label("Save As");
-    let print = MenuItem::with_label("Print");
-    let exit = MenuItem::with_label("Exit");
-
-    let edit = MenuItem::with_label("Edit");
-    let edit_menu = Menu::new();
-
-    let undo = MenuItem::with_label("Undo");
-    let cut = MenuItem::with_label("Cut");
-    let copy = MenuItem::with_label("Copy");
-    let paste = MenuItem::with_label("Paste");
-    let delete = MenuItem::with_label("Delete");
-    let find = MenuItem::with_label("Find");
-    let find_next = MenuItem::with_label("Find Next");
-    let replace = MenuItem::with_label("Replace");
-    let go_to = MenuItem::with_label("Go to...");
-    let select_all = MenuItem::with_label("Select All");
-
-    let view = MenuItem::with_label("View");
-    let view_menu = Menu::new();
-
-    let zoom_in = MenuItem::with_label("Zoom In");
-    let zoom_out = MenuItem::with_label("Zoom Out");
-    let default_zoom = MenuItem::with_label("Restore Default Zoom");
-
-    let about = MenuItem::with_label("About");
-    let about_menu = Menu::new();
-
-    let about_prog = MenuItem::with_label("About Program...");
-
-    file_menu.append(&new);
-    file_menu.append(&open);
-    file_menu.append(&save);
-    file_menu.append(&save_as);
-    file_menu.append(&print);
-    file_menu.append(&exit);
-    file.set_submenu(Some(&file_menu));
-    menu_bar.append(&file);
-
-    edit_menu.append(&undo);
-    edit_menu.append(&cut);
-    edit_menu.append(&copy);
-    edit_menu.append(&paste);
-    edit_menu.append(&delete);
-    edit_menu.append(&find);
-    edit_menu.append(&find_next);
-    edit_menu.append(&replace);
-    edit_menu.append(&go_to);
-    edit_menu.append(&select_all);
-    edit.set_submenu(Some(&edit_menu));
-    menu_bar.append(&edit);
-
-    view_menu.append(&zoom_in);
-    view_menu.append(&zoom_out);
-    view_menu.append(&default_zoom);
-    view.set_submenu(Some(&view_menu));
-    menu_bar.append(&view);
-
-    about_menu.append(&about_prog);
-    about.set_submenu(Some(&about_menu));
-    menu_bar.append(&about);
+    menu_bar.append(&build_file_menu(&textbox, filename, &window, page_num));
+    menu_bar.append(&build_edit_menu());
+    menu_bar.append(&build_view_menu());
+    menu_bar.append(&build_about_menu());
 
     win_box.pack_start(&menu_bar, false, false, 0);
-
-    let textbox = TextView::new();
-
     scrolled_window.add(&textbox);
-
     win_box.pack_start(&scrolled_window, true, true, 0);
-
     window.add(&win_box);
-
-    save.set_sensitive(false);
-
     window.show_all();
+}
 
-    let filename_clear = Rc::clone(&filename);
+fn build_edit_menu() -> MenuItem {
+    let edit_item = MenuItem::with_label("Edit");
+    let edit_menu = Menu::new();
+    let undo_item = MenuItem::with_label("Undo");
+    edit_menu.append(&undo_item);
+    let cut_item = MenuItem::with_label("Cut");
+    edit_menu.append(&cut_item);
+    let copy_item = MenuItem::with_label("Copy");
+    edit_menu.append(&copy_item);
+    let paste_item = MenuItem::with_label("Paste");
+    edit_menu.append(&paste_item);
+    let delete_item = MenuItem::with_label("Delete");
+    edit_menu.append(&delete_item);
+    let find_item = MenuItem::with_label("Find");
+    edit_menu.append(&find_item);
+    let find_next_item = MenuItem::with_label("Find Next");
+    edit_menu.append(&find_next_item);
+    let replace_item = MenuItem::with_label("Replace");
+    edit_menu.append(&replace_item);
+    let go_to_item = MenuItem::with_label("Go to...");
+    edit_menu.append(&go_to_item);
+    let select_all_item = MenuItem::with_label("Select All");
+    edit_menu.append(&select_all_item);
+    edit_item.set_submenu(Some(&edit_menu));
+    edit_item
+}
 
-    new.connect_activate(clone!(@weak save, @weak textbox => move |_| {
-        textbox.buffer().expect("Couldn't get window").set_text("");
-        filename_clear.borrow_mut().filename = PathBuf::new();
-        save.set_sensitive(false);
-    }));
+fn build_file_menu(
+    textbox: &TextView,
+    filename: Rc<RefCell<FileProperties>>,
+    window: &ApplicationWindow,
+    page_num: Rc<RefCell<PageProperties>>,
+) -> MenuItem {
+    let file_item = MenuItem::with_label("File");
+    let file_menu = Menu::new();
+    let new_menu_item = MenuItem::with_label("New");
+    file_menu.append(&new_menu_item);
+    let save_menu_item = MenuItem::with_label("Save");
+    save_menu_item.set_sensitive(false);
+    new_menu_item.connect_activate({
+        let textbox = textbox.clone();
+        let filename = filename.clone();
+        let save_menu_item = save_menu_item.clone();
+        move |_| {
+            textbox.buffer().expect("Couldn't get window").set_text("");
+            filename.borrow_mut().filename = PathBuf::new();
+            save_menu_item.set_sensitive(false);
+        }
+    });
+    let open_menu_item = MenuItem::with_label("Open");
+    file_menu.append(&open_menu_item);
+    open_menu_item.connect_activate({
+        let textbox = textbox.clone();
+        let filename = filename.clone();
+        let save_menu_item = save_menu_item.clone();
+        let window = window.clone();
+        move |_| {
+            let file_chooser = gtk::FileChooserDialog::new(
+                Some("Open File"),
+                Some(&window),
+                gtk::FileChooserAction::Open,
+            );
 
-    let filename_copy = Rc::clone(&filename);
+            file_chooser.add_buttons(&[
+                ("Open", gtk::ResponseType::Ok),
+                ("Cancel", gtk::ResponseType::Cancel),
+            ]);
 
-    open.connect_activate(clone!(@weak save, @weak textbox, @weak window => move |_| {
-        let file_chooser = gtk::FileChooserDialog::new(
-            Some("Open File"),
-            Some(&window),
-            gtk::FileChooserAction::Open,
-        );
+            file_chooser.connect_response({
+                let textbox = textbox.clone();
+                let filename = filename.clone();
+                let save_menu_item = save_menu_item.clone();
+                move |file_chooser, response| {
+                    if response == gtk::ResponseType::Ok {
+                        filename.borrow_mut().filename =
+                            file_chooser.filename().expect("Couldn't get filename");
+                        let file = File::open(&filename.borrow_mut().filename)
+                            .expect("Couldn't open file");
 
-        file_chooser.add_buttons(&[
-            ("Open", gtk::ResponseType::Ok),
-            ("Cancel", gtk::ResponseType::Cancel),
-        ]);
+                        let mut reader = BufReader::new(file);
+                        let mut contents = String::new();
+                        let _ = reader.read_to_string(&mut contents);
 
-        let filename1 = Rc::clone(&filename_copy);
+                        textbox
+                            .buffer()
+                            .expect("Couldn't get window")
+                            .set_text(&contents);
 
-        file_chooser.connect_response(clone!(@weak textbox => move |file_chooser, response| {
-            if response == gtk::ResponseType::Ok {
+                        save_menu_item.set_sensitive(true);
+                    }
+                    file_chooser.close();
+                }
+            });
+            file_chooser.show_all();
+        }
+    });
+    file_menu.append(&save_menu_item);
+    save_menu_item.connect_activate({
+        let textbox = textbox.clone();
+        let filename = filename.clone();
 
-                filename1.borrow_mut().filename = file_chooser.filename().expect("Couldn't get filename");
-                let file = File::open(&filename1.borrow_mut().filename).expect("Couldn't open file");
-
-                let mut reader = BufReader::new(file);
-                let mut contents = String::new();
-                let _ = reader.read_to_string(&mut contents);
-
-                textbox
-                    .buffer()
-                    .expect("Couldn't get window")
-                    .set_text(&contents);
-
-                    save.set_sensitive(true);
-            }
-            file_chooser.close();
-        }));
-        file_chooser.show_all();
-    }));
-
-    let filename2 = Rc::clone(&filename);
-
-    save.connect_activate(clone!(@weak textbox, @weak window => move |_| {
-        let mut file = File::create(&filename2.borrow_mut().filename).expect("Couldn't open file");
-        let textbuffer = textbox.buffer().unwrap();
-        let (start_iter, end_iter) = textbuffer.bounds();
-        write!(file, "{}", textbuffer.text(&start_iter, &end_iter, false).unwrap()).unwrap();
-    }));
-
-    let filename_copy2 = Rc::clone(&filename);
-
-    save_as.connect_activate(clone!(@weak save, @weak textbox, @weak window => move |_| {
-        let file_chooser = gtk::FileChooserDialog::new(
-            Some("Save File"),
-            Some(&window),
-            gtk::FileChooserAction::Save,
-        );
-
-        file_chooser.add_buttons(&[
-            ("Save", gtk::ResponseType::Ok),
-            ("Cancel", gtk::ResponseType::Cancel),
-        ]);
-
-        let filename3 = Rc::clone(&filename_copy2);
-
-        file_chooser.connect_response(clone!(@weak textbox => move |file_chooser, response| {
-            if response == gtk::ResponseType::Ok {
-                filename3.borrow_mut().filename = file_chooser.filename().expect("Couldn't get filename");
-                let mut file = File::create(&filename3.borrow_mut().filename).expect("Couldn't open file");
-                let textbuffer = textbox.buffer().unwrap();
-                let (start_iter, end_iter) = textbuffer.bounds();
-                write!(file, "{}", textbuffer.text(&start_iter, &end_iter, false).unwrap()).unwrap();
-
-                save.set_sensitive(true);
-            }
-            file_chooser.close();
-        }));
-        file_chooser.show_all();
-    }));
-
-    print.connect_activate(clone!(@weak textbox, @weak window => move |_| {
-
-        let print_operation = gtk::PrintOperation::new();
-        print_operation.connect_begin_print(clone!(@weak textbox => move |print_operation, _| {
-
+        move |_| {
+            let mut file =
+                File::create(&filename.borrow_mut().filename).expect("Couldn't open file");
             let textbuffer = textbox.buffer().unwrap();
-            let end = textbuffer.end_iter();
-            let n_lines = end.line()+1;
-
-            let num_pages = n_lines/40;
-
-
-            print_operation.set_n_pages(num_pages+1);
-        }));
-
-        let page_num1 = Rc::clone(&page_num);
-        page_num1.borrow_mut().number=0;
-
-        print_operation.connect_draw_page(move |_, print_context, _| {
-            let cairo = print_context
-                .cairo_context()
-                .expect("Couldn't get cairo context");
-
-            let font_description = pango::FontDescription::from_string("sans 14");
-            let pango_layout = print_context
-                .create_pango_layout()
-                .expect("Couldn't create pango layout");
-            pango_layout.set_font_description(Option::from(&font_description));
-
-            let textbuffer = textbox.buffer().unwrap();
-            let s_iter = textbuffer.iter_at_line(40*page_num1.borrow_mut().number);
-            let e_iter = textbuffer.iter_at_line(40*(page_num1.borrow_mut().number+1));
-            pango_layout.set_text(&textbuffer.text(&s_iter, &e_iter, false).unwrap());
-            cairo.move_to(10.0, 10.0);
-            pangocairo::functions::show_layout(&cairo, &pango_layout);
-
-            page_num1.borrow_mut().number+=1;
-        });
-
-        print_operation.set_allow_async(true);
-        print_operation.connect_done(|_, _res| {
-            //println!("printing done: {:?}", res);
-        });
-
-        print_operation
-            .run(gtk::PrintOperationAction::PrintDialog, Some(&window))
-            .expect("Couldn't print");
-    }));
-
-    exit.connect_activate(clone!(@weak window => move |_| {
-        window.close();
-    }));
-
-    let css1 = Rc::clone(&css);
-
-    zoom_in.connect_activate(move |_| {
-        css1.borrow_mut().font += 2;
-        load_css(css1.borrow_mut().font);
+            let (start_iter, end_iter) = textbuffer.bounds();
+            write!(
+                file,
+                "{}",
+                textbuffer.text(&start_iter, &end_iter, false).unwrap()
+            )
+            .unwrap();
+        }
     });
+    let save_as = MenuItem::with_label("Save As");
+    file_menu.append(&save_as);
+    save_as.connect_activate({
+        let textbox = textbox.downgrade();
+        let window = window.clone();
+        let save_menu_item = save_menu_item.clone();
+        move |_| {
+            let textbox = match textbox.upgrade() {
+                Some(textbox) => textbox,
+                None => return,
+            };
+            let file_chooser = gtk::FileChooserDialog::new(
+                Some("Save File"),
+                Some(&window),
+                gtk::FileChooserAction::Save,
+            );
 
-    let css2 = Rc::clone(&css);
+            file_chooser.add_buttons(&[
+                ("Save", gtk::ResponseType::Ok),
+                ("Cancel", gtk::ResponseType::Cancel),
+            ]);
 
-    zoom_out.connect_activate(move |_| {
-        css2.borrow_mut().font -= 2;
-        load_css(css2.borrow_mut().font);
+            file_chooser.connect_response({
+                let textbox = textbox.clone();
+                let filename = filename.clone();
+                let save_menu_item = save_menu_item.clone();
+                move |file_chooser, response| {
+                    if response == gtk::ResponseType::Ok {
+                        filename.borrow_mut().filename =
+                            file_chooser.filename().expect("Couldn't get filename");
+                        let mut file = File::create(&filename.borrow_mut().filename)
+                            .expect("Couldn't open file");
+                        let textbuffer = textbox.buffer().unwrap();
+                        let (start_iter, end_iter) = textbuffer.bounds();
+                        write!(
+                            file,
+                            "{}",
+                            textbuffer.text(&start_iter, &end_iter, false).unwrap()
+                        )
+                        .unwrap();
+
+                        save_menu_item.set_sensitive(true);
+                    }
+                    file_chooser.close();
+                }
+            });
+            file_chooser.show_all();
+        }
     });
+    let print = MenuItem::with_label("Print");
+    file_menu.append(&print);
+    print.connect_activate({
+        let window = window.clone();
+        let textbox = textbox.clone();
+        move |_| {
+            let print_operation = gtk::PrintOperation::new();
+            print_operation.connect_begin_print({
+                let textbox = textbox.clone();
+                move |print_operation, _| {
+                    let textbuffer = textbox.buffer().unwrap();
+                    let end = textbuffer.end_iter();
+                    let n_lines = end.line() + 1;
 
-    let css3 = Rc::clone(&css);
+                    let num_pages = n_lines / 40;
 
-    default_zoom.connect_activate(move |_| {
-        css3.borrow_mut().font = 15;
-        load_css(css3.borrow_mut().font);
+                    print_operation.set_n_pages(num_pages + 1);
+                }
+            });
+
+            let page_num1 = Rc::clone(&page_num);
+            page_num1.borrow_mut().number = 0;
+
+            print_operation.connect_draw_page({
+                let textbox = textbox.clone();
+                move |_, print_context, _| {
+                    let cairo = print_context
+                        .cairo_context()
+                        .expect("Couldn't get cairo context");
+
+                    let font_description = pango::FontDescription::from_string("sans 14");
+                    let pango_layout = print_context
+                        .create_pango_layout()
+                        .expect("Couldn't create pango layout");
+                    pango_layout.set_font_description(Option::from(&font_description));
+
+                    let textbuffer = textbox.buffer().unwrap();
+                    let s_iter = textbuffer.iter_at_line(40 * page_num1.borrow_mut().number);
+                    let e_iter = textbuffer.iter_at_line(40 * (page_num1.borrow_mut().number + 1));
+                    pango_layout.set_text(&textbuffer.text(&s_iter, &e_iter, false).unwrap());
+                    cairo.move_to(10.0, 10.0);
+                    pangocairo::functions::show_layout(&cairo, &pango_layout);
+
+                    page_num1.borrow_mut().number += 1;
+                }
+            });
+
+            print_operation.set_allow_async(true);
+            print_operation.connect_done(|_, _res| {
+                //println!("printing done: {:?}", res);
+            });
+
+            print_operation
+                .run(gtk::PrintOperationAction::PrintDialog, Some(&window))
+                .expect("Couldn't print");
+        }
     });
+    let exit = MenuItem::with_label("Exit");
+    file_menu.append(&exit);
+    exit.connect_activate({
+        let window = window.clone();
+        move |_| {
+            window.close();
+        }
+    });
+    file_item.set_submenu(Some(&file_menu));
+    file_item
+}
 
-    about_prog.connect_activate(move |_| {
+fn build_about_menu() -> MenuItem {
+    let about_item = MenuItem::with_label("About");
+    let about_menu = Menu::new();
+
+    let about_prog_item = MenuItem::with_label("About Program...");
+    about_prog_item.connect_activate(move |_| {
         let logo = Pixbuf::from_file("src/rust.png").unwrap();
 
         let about_dialog = AboutDialog::builder()
@@ -335,4 +345,44 @@ fn build_ui(app: &Application) {
 
         about_dialog.show_all();
     });
+
+    about_menu.append(&about_prog_item);
+
+    about_item.set_submenu(Some(&about_menu));
+    about_item
+}
+
+fn build_view_menu() -> MenuItem {
+    let view_item = MenuItem::with_label("View");
+    let view_menu = Menu::new();
+    view_item.set_submenu(Some(&view_menu));
+    let css = Rc::new(RefCell::new(CSSProperties { font: 15 }));
+    let zoom_in_item = MenuItem::with_label("Zoom In");
+    zoom_in_item.connect_activate({
+        let css = css.clone();
+        move |_| {
+            css.borrow_mut().font += 2;
+            load_css(css.borrow_mut().font);
+        }
+    });
+    view_menu.append(&zoom_in_item);
+    let zoom_out_item = MenuItem::with_label("Zoom Out");
+    zoom_out_item.connect_activate({
+        let css = css.clone();
+        move |_| {
+            css.borrow_mut().font -= 2;
+            load_css(css.borrow_mut().font);
+        }
+    });
+    view_menu.append(&zoom_out_item);
+    let default_zoom_item = MenuItem::with_label("Restore Default Zoom");
+    default_zoom_item.connect_activate({
+        let css = css.clone();
+        move |_| {
+            css.borrow_mut().font = 15;
+            load_css(css.borrow_mut().font);
+        }
+    });
+    view_menu.append(&default_zoom_item);
+    view_item
 }

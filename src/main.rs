@@ -21,6 +21,10 @@ struct FileProperties {
     filename: PathBuf,
 }
 
+struct PageProperties {
+    number: i32,
+}
+
 fn main() {
     let app = Application::builder().application_id(APP_ID).build();
 
@@ -43,8 +47,10 @@ fn load_css(size: i32) {
     let provider = CssProvider::new();
     provider.load_from_data(css_code.as_bytes()).unwrap();
 
-
-    StyleContext::remove_provider_for_screen(&Screen::default().expect("Could not connect to a display."), &provider);
+    StyleContext::remove_provider_for_screen(
+        &Screen::default().expect("Could not connect to a display."),
+        &provider,
+    );
     // Add the provider to the default screen
     StyleContext::add_provider_for_screen(
         &Screen::default().expect("Could not connect to a display."),
@@ -58,6 +64,8 @@ fn build_ui(app: &Application) {
     let filename = Rc::new(RefCell::new(FileProperties {
         filename: PathBuf::new(),
     }));
+
+    let page_num = Rc::new(RefCell::new(PageProperties { number: 0 }));
 
     let window = ApplicationWindow::builder()
         .application(app)
@@ -238,6 +246,55 @@ fn build_ui(app: &Application) {
             file_chooser.close();
         }));
         file_chooser.show_all();
+    }));
+
+    print.connect_activate(clone!(@weak textbox, @weak window => move |_| {
+
+        let print_operation = gtk::PrintOperation::new();
+        print_operation.connect_begin_print(clone!(@weak textbox => move |print_operation, _| {
+
+            let textbuffer = textbox.buffer().unwrap();
+            let end = textbuffer.end_iter();
+            let n_lines = end.line()+1;
+
+            let num_pages = n_lines/40;
+
+
+            print_operation.set_n_pages(num_pages+1);
+        }));
+
+        let page_num1 = Rc::clone(&page_num);
+        page_num1.borrow_mut().number=0;
+
+        print_operation.connect_draw_page(move |_, print_context, _| {
+            let cairo = print_context
+                .cairo_context()
+                .expect("Couldn't get cairo context");
+
+            let font_description = pango::FontDescription::from_string("sans 14");
+            let pango_layout = print_context
+                .create_pango_layout()
+                .expect("Couldn't create pango layout");
+            pango_layout.set_font_description(Option::from(&font_description));
+
+            let textbuffer = textbox.buffer().unwrap();
+            let s_iter = textbuffer.iter_at_line(40*page_num1.borrow_mut().number);
+            let e_iter = textbuffer.iter_at_line(40*(page_num1.borrow_mut().number+1));
+            pango_layout.set_text(&textbuffer.text(&s_iter, &e_iter, false).unwrap());
+            cairo.move_to(10.0, 10.0);
+            pangocairo::functions::show_layout(&cairo, &pango_layout);
+
+            page_num1.borrow_mut().number+=1;
+        });
+
+        print_operation.set_allow_async(true);
+        print_operation.connect_done(|_, _res| {
+            //println!("printing done: {:?}", res);
+        });
+
+        print_operation
+            .run(gtk::PrintOperationAction::PrintDialog, Some(&window))
+            .expect("Couldn't print");
     }));
 
     exit.connect_activate(clone!(@weak window => move |_| {

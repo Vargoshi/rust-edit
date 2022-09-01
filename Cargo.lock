@@ -391,6 +391,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "pangocairo"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7876a45c1f1d1a75a2601dc6d9ef2cb5a8be0e3d76f909d82450759929035366"
+dependencies = [
+ "bitflags",
+ "cairo-rs",
+ "glib",
+ "libc",
+ "pango",
+ "pangocairo-sys",
+]
+
+[[package]]
+name = "pangocairo-sys"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78cf746594916c81d5f739af9335c5f55a1f4606d80b3e1d821f18cf95a29494"
+dependencies = [
+ "cairo-sys-rs",
+ "glib-sys",
+ "libc",
+ "pango-sys",
+ "system-deps",
+]
+
+[[package]]
 name = "pest"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -476,6 +503,8 @@ name = "rust-edit"
 version = "0.0.1"
 dependencies = [
  "gtk",
+ "pango",
+ "pangocairo",
 ]
 
 [[package]]

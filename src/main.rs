@@ -16,18 +16,6 @@ use std::rc::Rc;
 
 const APP_ID: &str = "org.gtk_rs.Redit";
 
-struct CSSProperties {
-    font: i32,
-}
-
-struct FileProperties {
-    filename: PathBuf,
-}
-
-struct PageProperties {
-    number: i32,
-}
-
 fn main() {
     let app = Application::builder().application_id(APP_ID).build();
 
@@ -39,14 +27,7 @@ fn main() {
 
 fn load_css(size: i32) {
     // Load the CSS file and add it to the provider
-    let part1 = "textview {
-        font-size: "
-        .to_string();
-    let size_string = size.to_string();
-    let part2 = "px;
-}"
-    .to_string();
-    let css_code = part1 + &size_string + &part2;
+    let css_code = format!("textview {{ font-size: {}px; }}", size);
     let provider = CssProvider::new();
     provider.load_from_data(css_code.as_bytes()).unwrap();
 
@@ -63,12 +44,6 @@ fn load_css(size: i32) {
 }
 
 fn build_ui(app: &Application) {
-    let filename = Rc::new(RefCell::new(FileProperties {
-        filename: PathBuf::new(),
-    }));
-
-    let page_num = Rc::new(RefCell::new(PageProperties { number: 0 }));
-
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Redit")
@@ -83,7 +58,7 @@ fn build_ui(app: &Application) {
     let win_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let menu_bar = MenuBar::new();
 
-    menu_bar.append(&build_file_menu(&textbox, filename, &window, page_num));
+    menu_bar.append(&build_file_menu(&textbox, &window));
     menu_bar.append(&build_edit_menu());
     menu_bar.append(&build_view_menu());
     menu_bar.append(&build_about_menu());
@@ -122,12 +97,9 @@ fn build_edit_menu() -> MenuItem {
     edit_item
 }
 
-fn build_file_menu(
-    textbox: &TextView,
-    filename: Rc<RefCell<FileProperties>>,
-    window: &ApplicationWindow,
-    page_num: Rc<RefCell<PageProperties>>,
-) -> MenuItem {
+fn build_file_menu(textbox: &TextView, window: &ApplicationWindow) -> MenuItem {
+    let filename = Rc::new(RefCell::new(PathBuf::new()));
+
     let file_item = MenuItem::with_label("File");
     let file_menu = Menu::new();
     let new_menu_item = MenuItem::with_label("New");
@@ -140,7 +112,7 @@ fn build_file_menu(
         let save_menu_item = save_menu_item.clone();
         move |_| {
             textbox.buffer().expect("Couldn't get window").set_text("");
-            filename.borrow_mut().filename = PathBuf::new();
+            *filename.borrow_mut() = PathBuf::new();
             save_menu_item.set_sensitive(false);
         }
     });
@@ -169,10 +141,9 @@ fn build_file_menu(
                 let save_menu_item = save_menu_item.clone();
                 move |file_chooser, response| {
                     if response == gtk::ResponseType::Ok {
-                        filename.borrow_mut().filename =
+                        *filename.borrow_mut() =
                             file_chooser.filename().expect("Couldn't get filename");
-                        let file = File::open(&filename.borrow_mut().filename)
-                            .expect("Couldn't open file");
+                        let file = File::open(&*filename.borrow_mut()).expect("Couldn't open file");
 
                         let mut reader = BufReader::new(file);
                         let mut contents = String::new();
@@ -197,8 +168,7 @@ fn build_file_menu(
         let filename = filename.clone();
 
         move |_| {
-            let mut file =
-                File::create(&filename.borrow_mut().filename).expect("Couldn't open file");
+            let mut file = File::create(&*filename.borrow_mut()).expect("Couldn't open file");
             let textbuffer = textbox.buffer().unwrap();
             let (start_iter, end_iter) = textbuffer.bounds();
             write!(
@@ -237,10 +207,10 @@ fn build_file_menu(
                 let save_menu_item = save_menu_item.clone();
                 move |file_chooser, response| {
                     if response == gtk::ResponseType::Ok {
-                        filename.borrow_mut().filename =
+                        *filename.borrow_mut() =
                             file_chooser.filename().expect("Couldn't get filename");
-                        let mut file = File::create(&filename.borrow_mut().filename)
-                            .expect("Couldn't open file");
+                        let mut file =
+                            File::create(&*filename.borrow_mut()).expect("Couldn't open file");
                         let textbuffer = textbox.buffer().unwrap();
                         let (start_iter, end_iter) = textbuffer.bounds();
                         write!(
@@ -278,12 +248,9 @@ fn build_file_menu(
                 }
             });
 
-            let page_num1 = Rc::clone(&page_num);
-            page_num1.borrow_mut().number = 0;
-
             print_operation.connect_draw_page({
                 let textbox = textbox.clone();
-                move |_, print_context, _| {
+                move |_, print_context, pg_num| {
                     let cairo = print_context
                         .cairo_context()
                         .expect("Couldn't get cairo context");
@@ -295,13 +262,11 @@ fn build_file_menu(
                     pango_layout.set_font_description(Option::from(&font_description));
 
                     let textbuffer = textbox.buffer().unwrap();
-                    let s_iter = textbuffer.iter_at_line(40 * page_num1.borrow_mut().number);
-                    let e_iter = textbuffer.iter_at_line(40 * (page_num1.borrow_mut().number + 1));
+                    let s_iter = textbuffer.iter_at_line(40 * pg_num);
+                    let e_iter = textbuffer.iter_at_line(40 * (pg_num + 1));
                     pango_layout.set_text(&textbuffer.text(&s_iter, &e_iter, false).unwrap());
                     cairo.move_to(10.0, 10.0);
                     pangocairo::functions::show_layout(&cairo, &pango_layout);
-
-                    page_num1.borrow_mut().number += 1;
                 }
             });
 
@@ -356,31 +321,31 @@ fn build_view_menu() -> MenuItem {
     let view_item = MenuItem::with_label("View");
     let view_menu = Menu::new();
     view_item.set_submenu(Some(&view_menu));
-    let css = Rc::new(RefCell::new(CSSProperties { font: 15 }));
+    let font_size = Rc::new(RefCell::new(15));
     let zoom_in_item = MenuItem::with_label("Zoom In");
     zoom_in_item.connect_activate({
-        let css = css.clone();
+        let font_size = font_size.clone();
         move |_| {
-            css.borrow_mut().font += 2;
-            load_css(css.borrow_mut().font);
+            *font_size.borrow_mut() += 2;
+            load_css(*font_size.borrow_mut());
         }
     });
     view_menu.append(&zoom_in_item);
     let zoom_out_item = MenuItem::with_label("Zoom Out");
     zoom_out_item.connect_activate({
-        let css = css.clone();
+        let font_size = font_size.clone();
         move |_| {
-            css.borrow_mut().font -= 2;
-            load_css(css.borrow_mut().font);
+            *font_size.borrow_mut() -= 2;
+            load_css(*font_size.borrow_mut());
         }
     });
     view_menu.append(&zoom_out_item);
     let default_zoom_item = MenuItem::with_label("Restore Default Zoom");
     default_zoom_item.connect_activate({
-        let css = css.clone();
+        let font_size = font_size.clone();
         move |_| {
-            css.borrow_mut().font = 15;
-            load_css(css.borrow_mut().font);
+            *font_size.borrow_mut() = 15;
+            load_css(*font_size.borrow_mut());
         }
     });
     view_menu.append(&default_zoom_item);
